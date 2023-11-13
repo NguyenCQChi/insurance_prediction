@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+from sklearn.preprocessing import StandardScaler
 
 # load and process data
 # Inputs:
@@ -13,7 +13,18 @@ def process_data(filepath):
     data_read.dropna(inplace=True)
     return data_read
 
-
+def get_data(normalize=False):
+    data = process_data('trainingset.csv')
+    X = data.drop(columns=['ClaimAmount'])
+    y = data['ClaimAmount']
+    scaler = StandardScaler()
+    
+    if normalize:
+        X = scaler.fit_transform(X)
+        
+    return X, y
+        
+        
 def main():
     print(process_data('trainingset.csv'))
 
