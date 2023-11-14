@@ -36,12 +36,16 @@ def cv_rf_two_stage(K):
 	kf = KFold(K, shuffle=True, random_state=42)
 	clf_metrics = []
 	reg_metrics = []
-	metrics = []
+	model_metrics = []
 	
 	X, y = get_data(normalize=False)
  
 	clf = get_rf_model(type='classifier')
 	reg = get_rf_model(type='regressor')
+	
+	# nn
+	# clf = NeuralNetwork(X.shape[1], type='classifier')
+	# reg = NeuralNetwork(X.shape[1], type='regressor')
  
 	for train_idx, test_idx in kf.split(X):
 		X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
@@ -54,25 +58,41 @@ def cv_rf_two_stage(K):
 		y2_train, y2_test = y_train[y_train > 0], y_test[y_test > 0]
   
 		clf.fit(X1_train, y1_train)
+		# y1_pred = (clf.predict_proba(X1_test)[:, 1] > 0.2).astype(int)
 		y1_pred = clf.predict(X1_test)
 		clf_metrics.append(accuracy_score(y1_test, y1_pred))
+  
+		# nn
+		# clf.train(X1_train, y1_train, X1_test, y1_test)
+		# loss, metrics = clf.evaluate(X1_test, y1_test)
+		# y1_pred = clf.predict(X1_test).flatten()
+		# print("dfsfsdfsdf", y1_pred)
+		# clf_metrics.append(metrics)
 
 		reg.fit(X2_train, y2_train)
 		y2_pred = reg.predict(X2_test)
+		print('reg ', mean_absolute_error(y2_test, y2_pred))
 		reg_metrics.append(mean_absolute_error(y2_test, y2_pred))
+  
+		# nn
+		# reg.train(X2_train, y2_train, X2_test, y2_test)
+		# loss, metrics = reg.evaluate(X2_test, y2_test)
+		# reg_metrics.append(metrics)
   
 		X_test_reg = X_test[y1_pred > 0]
 		y_pred = np.zeros(y_test.shape)
-
+		print(len(X_test_reg))
+		print(np.sum(y_test > 0))
+  
 		if len(X_test_reg) > 0:
 			y_pred_reg = reg.predict(X_test_reg)
 			y_pred[y1_pred > 0] = y_pred_reg
  
-		metrics.append(mean_absolute_error(y_test, y_pred))
+		model_metrics.append(mean_absolute_error(y_test, y_pred))
   
 	print(f'Classifier accuracy: {np.mean(clf_metrics)}')
 	print(f'Regressor MAE: {np.mean(reg_metrics)}')
-	print(f'Model MAE: {np.mean(metrics)}')
+	print(f'Model MAE: {np.mean(model_metrics)}')
   
   
 def evaluate(model_type='lr'):
@@ -97,9 +117,9 @@ def evaluate(model_type='lr'):
 
 def main():
 	# evaluate()
-	evaluate('nn')
+	# evaluate('nn')
 	# evaluate('rf')
-	# cv_rf_two_stage(10)
+	cv_rf_two_stage(10)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ from keras.callbacks import EarlyStopping
 
 class NeuralNetwork:
     def __init__(self, input_shape, type="regressor"):
+        self.type = type
         model = Sequential()
         model.add(Dense(20, activation="relu", input_shape=(input_shape,)))
         model.add(Dropout(0.2))
@@ -23,19 +24,27 @@ class NeuralNetwork:
         self.model = model
 
     def train(self, X_train, y_train, X_val, y_val):
-        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=5)
+        es = EarlyStopping(monitor="val_loss", mode="min", verbose=0, patience=5)
         self.model.fit(
             X_train,
             y_train,
             epochs=10,
             batch_size=32,
-            verbose=2,
+            verbose=0,
             validation_data=(X_val, y_val),
             callbacks=[es],
         )
-        
+      
     def evaluate(self, X_test, y_test):
-        return self.model.evaluate(X_test, y_test, verbose=2)
+        return self.model.evaluate(X_test, y_test, verbose=0)
+      
+    def predict(self, X):
+        pred = self.model.predict(X)
+        
+        if self.type == "classifier":
+            return (self.model.predict(X) > 0.2).astype(int)
+
+        return pred
 
 
 def get_rf_model(type="regressor"):
