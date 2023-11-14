@@ -1,11 +1,12 @@
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, KFold, cross_validate
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import accuracy_score, mean_absolute_error
+from keras.callbacks import EarlyStopping
 
 from preprocessing_data import get_data
-from model import get_nn_model
+from model import get_nn_model, get_rf_model
 
 
 def split_data(data):
@@ -20,29 +21,81 @@ def split_data(data):
     return x_train, x_test, y_train, y_test
 
 
-def cv(model, X, y, K):
+def cv_nn(model, X, y, K):
 	kf = KFold(K, shuffle=True, random_state=42)
 	mae = []
-	
+	es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=5)	
+ 
 	for train_idx, test_idx in kf.split(X):
+
 		model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-		model.fit(X[train_idx], y[train_idx], epochs=10, batch_size=32, verbose=1)
-		loss, metrics = model.evaluate(X[test_idx], y[test_idx], verbose=1)
+		model.fit(
+    	X[train_idx], 
+     	y[train_idx], 
+      epochs=10, 
+      batch_size=32, 
+      verbose=2,
+      validation_data=(X[test_idx], y[test_idx]),
+      callbacks=[es]
+    )
+		loss, metrics = model.evaluate(X[test_idx], y[test_idx], verbose=2)
 		mae.append(metrics)
 		
 	return np.mean(mae) 
 
+def cv_rf_two_stage(K):
+	kf = KFold(K, shuffle=True, random_state=42)
+	clf_metrics = []
+	reg_metrics = []
+	metrics = []
+	
+	X, y = get_data(normalize=False)
+ 
+	for train_idx, test_idx in kf.split(X):
+		clf = get_rf_model(type='classifier')
+		reg = get_rf_model(type='regressor')
+		X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
+		X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
+  
+		X1_train, X1_test = X_train, X_test
+		y1_train, y1_test = (y_train > 0).astype(int), (y_test > 0).astype(int)
+  
+		X2_train, X2_test = X_train[y_train > 0], X_test[y_test > 0]
+		y2_train, y2_test = y_train[y_train > 0], y_test[y_test > 0]
+  
+		clf.fit(X1_train, y1_train)
+		y1_pred = clf.predict(X1_test)
+		clf_metrics.append(accuracy_score(y1_test, y1_pred))
+
+		reg.fit(X2_train, y2_train)
+		y2_pred = reg.predict(X2_test)
+		reg_metrics.append(mean_absolute_error(y2_test, y2_pred))
+  
+		X_test_reg = X_test[y1_pred > 0]
+		y_pred = np.zeros(y_test.shape)
+
+		if len(X_test_reg) > 0:
+			y_pred_reg = reg.predict(X_test_reg)
+			y_pred[y1_pred > 0] = y_pred_reg
+ 
+		metrics.append(mean_absolute_error(y_test, y_pred))
+  
+	print(f'Classifier accuracy: {np.mean(clf_metrics)}')
+	print(f'Regressor MAE: {np.mean(reg_metrics)}')
+	print(f'Model MAE: {np.mean(metrics)}')
+  
+  
 def evaluate(model_type='lr'):
-	K = 5
+	K = 10
   
 	if model_type == 'nn':
 		X, y = get_data(normalize=True)
 		model = get_nn_model(X.shape[1])
-		err = cv(model, X, y, K)
+		err = cv_nn(model, X, y, K)
 		print(f'CV error (NN): {err}')
 	elif model_type == 'rf':
 		X, y = get_data(normalize=False)
-		model = RandomForestRegressor(n_estimators=100, random_state=42)
+		model = get_rf_model()
 		result = cross_validate(model, X, y, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
 		print(f'CV error (RF): {-np.mean(result["test_score"])}')
 	else:
@@ -55,7 +108,8 @@ def evaluate(model_type='lr'):
 def main():
 	# evaluate()
 	# evaluate('nn')
-	evaluate('rf')
+	# evaluate('rf')
+	cv_rf_two_stage(10)
 
 
 if __name__ == "__main__":

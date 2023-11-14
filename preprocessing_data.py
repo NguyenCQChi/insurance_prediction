@@ -17,13 +17,12 @@ def get_data(normalize=False):
     data = process_data('trainingset.csv')
     X = data.drop(columns=['ClaimAmount'])
     y = data['ClaimAmount']
-    scaler = StandardScaler()
     
     if normalize:
+        scaler = StandardScaler()
         X = scaler.fit_transform(X)
         
     return X, y
-        
         
 def main():
     print(process_data('trainingset.csv'))
