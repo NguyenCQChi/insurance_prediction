@@ -13,6 +13,7 @@ def process_data(filepath):
     data_read.dropna(inplace=True)
     return data_read
 
+
 def get_data(normalize=False):
     data = process_data('trainingset.csv')
     X = data.drop(columns=['ClaimAmount'])
@@ -23,6 +24,17 @@ def get_data(normalize=False):
         X = scaler.fit_transform(X)
         
     return X, y
+
+
+def get_test_data(normalize=False):
+    X = process_data('testset.csv')
+    
+    if normalize:
+        scaler = StandardScaler()
+        X = scaler.fit_transform(X)
+        
+    return X
+
         
 def main():
     print(process_data('trainingset.csv'))

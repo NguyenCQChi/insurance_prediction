@@ -19,6 +19,7 @@ class NeuralNetwork:
                 optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"]
             )
         else:
+            model.add(Dense(1))
             model.compile(optimizer="adam", loss="mse", metrics=["mae"])
 
         self.model = model
@@ -42,7 +43,7 @@ class NeuralNetwork:
         pred = self.model.predict(X)
         
         if self.type == "classifier":
-            return (self.model.predict(X) > 0.2).astype(int)
+            return (self.model.predict(X) > 0.1).astype(int)
 
         return pred
 
