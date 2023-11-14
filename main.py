@@ -29,8 +29,6 @@ def undersample(filepath, undersample_rate):
 	data.dropna(inplace=True)
 	majority = data[data['ClaimAmount'] == 0]
 	minority = data[data['ClaimAmount'] != 0]
-	print(majority['ClaimAmount'].value_counts())
-	print(minority['ClaimAmount'].value_counts())
 
 	majority_count = int((len(minority)/undersample_rate)-len(minority))
 	majority = majority.sample(majority_count)
@@ -112,7 +110,6 @@ def main():
 	evaluate('ridge_undersampled')
 	evaluate('lasso')
 	evaluate('lasso_undersampled')
-	evaluate('nb')
 
 
 if __name__ == "__main__":
