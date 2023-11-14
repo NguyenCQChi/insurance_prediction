@@ -1,24 +1,45 @@
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from keras.models import Sequential
 from keras.layers import Dense, Dropout
-  
-def get_nn_model(input_shape, type='regressor'):
-    model = Sequential()
-    model.add(Dense(20, activation='relu', input_shape=(input_shape,)))
-    model.add(Dropout(0.2))
-    model.add(Dense(10, activation='relu'))
-    model.add(Dropout(0.2))
-    
-    if type == 'classifier':
-        model.add(Dense(1, activation='sigmoid'))
-    else:
-        model.add(Dense(1))
+from keras.callbacks import EarlyStopping
+
+
+class NeuralNetwork:
+    def __init__(self, input_shape, type="regressor"):
+        model = Sequential()
+        model.add(Dense(20, activation="relu", input_shape=(input_shape,)))
+        model.add(Dropout(0.2))
+        model.add(Dense(10, activation="relu"))
+        model.add(Dropout(0.2))
+
+        if type == "classifier":
+            model.add(Dense(1, activation="sigmoid"))
+            model.compile(
+                optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"]
+            )
+        else:
+            model.compile(optimizer="adam", loss="mse", metrics=["mae"])
+
+        self.model = model
+
+    def train(self, X_train, y_train, X_val, y_val):
+        es = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=5)
+        self.model.fit(
+            X_train,
+            y_train,
+            epochs=10,
+            batch_size=32,
+            verbose=2,
+            validation_data=(X_val, y_val),
+            callbacks=[es],
+        )
         
-    
-    return model
-  
-def get_rf_model(type='regressor'):
-    if type == 'classifier':
+    def evaluate(self, X_test, y_test):
+        return self.model.evaluate(X_test, y_test, verbose=2)
+
+
+def get_rf_model(type="regressor"):
+    if type == "classifier":
         return RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
     else:
         return RandomForestRegressor(n_estimators=100, random_state=42)

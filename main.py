@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score, mean_absolute_error
 from keras.callbacks import EarlyStopping
 
 from preprocessing_data import get_data
-from model import get_nn_model, get_rf_model
+from model import NeuralNetwork, get_rf_model
 
 
 def split_data(data):
@@ -24,21 +24,10 @@ def split_data(data):
 def cv_nn(model, X, y, K):
 	kf = KFold(K, shuffle=True, random_state=42)
 	mae = []
-	es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=5)	
  
 	for train_idx, test_idx in kf.split(X):
-
-		model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-		model.fit(
-    	X[train_idx], 
-     	y[train_idx], 
-      epochs=10, 
-      batch_size=32, 
-      verbose=2,
-      validation_data=(X[test_idx], y[test_idx]),
-      callbacks=[es]
-    )
-		loss, metrics = model.evaluate(X[test_idx], y[test_idx], verbose=2)
+		model.train(X[train_idx], y[train_idx], X[test_idx], y[test_idx])
+		loss, metrics = model.evaluate(X[test_idx], y[test_idx])
 		mae.append(metrics)
 		
 	return np.mean(mae) 
@@ -51,9 +40,10 @@ def cv_rf_two_stage(K):
 	
 	X, y = get_data(normalize=False)
  
+	clf = get_rf_model(type='classifier')
+	reg = get_rf_model(type='regressor')
+ 
 	for train_idx, test_idx in kf.split(X):
-		clf = get_rf_model(type='classifier')
-		reg = get_rf_model(type='regressor')
 		X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
 		X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
   
@@ -90,7 +80,7 @@ def evaluate(model_type='lr'):
   
 	if model_type == 'nn':
 		X, y = get_data(normalize=True)
-		model = get_nn_model(X.shape[1])
+		model = NeuralNetwork(X.shape[1])
 		err = cv_nn(model, X, y, K)
 		print(f'CV error (NN): {err}')
 	elif model_type == 'rf':
@@ -107,9 +97,9 @@ def evaluate(model_type='lr'):
 
 def main():
 	# evaluate()
-	# evaluate('nn')
+	evaluate('nn')
 	# evaluate('rf')
-	cv_rf_two_stage(10)
+	# cv_rf_two_stage(10)
 
 
 if __name__ == "__main__":
