@@ -66,7 +66,7 @@ def evaluate(model_type, X_train, y_train, X_test, y_train_binary):
 		y_pred[no_claim_indices] = 0
 
 		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV error (RF): {-np.mean(result["test_score"])}')
+		print(f'CV MAE (RF): {-np.mean(result["test_score"])}')
 		df= pd.DataFrame({'ClaimAmounts': y_pred})
 		df.to_csv('rf_hr.csv', index_label='rowIndex')
 	elif model_type == 'svm':
@@ -85,7 +85,7 @@ def evaluate(model_type, X_train, y_train, X_test, y_train_binary):
 		y_pred = best_model.predict(X_test)
 		y_pred[no_claim_indices] = 0
 		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV error (SVM): {-np.mean(result["test_score"])}')
+		print(f'CV MAE (SVM): {-np.mean(result["test_score"])}')
 		df= pd.DataFrame({'ClaimAmounts': y_pred})
 		df.to_csv('svm_hr.csv', index_label='rowIndex')
 	elif model_type == 'sgd':
@@ -105,7 +105,7 @@ def evaluate(model_type, X_train, y_train, X_test, y_train_binary):
 		y_pred[no_claim_indices] = 0
 
 		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV error (SGD): {-np.mean(result["test_score"])}')
+		print(f'CV MAE (SGD): {-np.mean(result["test_score"])}')
 		df= pd.DataFrame({'ClaimAmounts': y_pred})
 		df.to_csv('sgd_hr.csv', index_label='rowIndex')
 	elif model_type == 'ridge':
@@ -124,13 +124,13 @@ def evaluate(model_type, X_train, y_train, X_test, y_train_binary):
 		y_pred = best_model.predict(X_test)
 		y_pred[no_claim_indices] = 0
 		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV error (Ridge): {-np.mean(result["test_score"])}')
+		print(f'CV MAE (Ridge): {-np.mean(result["test_score"])}')
 		df= pd.DataFrame({'ClaimAmounts': y_pred})
 		df.to_csv('ridge_hr.csv', index_label='rowIndex')
    
 
 def main():
-	data = undersample("trainingset.csv", 0.3)
+	data = undersample("trainingset.csv", 0.2)
 	X_train, y_train = split_data(data)
 	# X_train, y_train = get_data(normalize=True)
 	X_test = get_data(train=False, normalize=True)
