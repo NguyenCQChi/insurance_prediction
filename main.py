@@ -1,10 +1,14 @@
 import numpy as np
 import pandas as pd
+from keras import Sequential
+from keras.src.layers import Dense
+from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, KFold, cross_validate, GridSearchCV
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingClassifier
 from sklearn.linear_model import LinearRegression, HuberRegressor, ElasticNet
-from sklearn.neighbors import KNeighborsRegressor
+from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
+from sklearn.svm import SVC
 
 import preprocessing_data
 from model import get_nn_model
@@ -36,89 +40,87 @@ def cv(model, X, y, K):
     return np.mean(mae)
 
 
-def evaluate(model_type):
+def evaluate(model_type, X_train, y_train, X_test, y_train_binary):
     K = 5
+    if model_type == 'knn':
+        clf = KNeighborsClassifier(n_neighbors=265)
+        clf.fit(X_train, y_train_binary)
 
-    if model_type == 'nn':
-        X, y = get_data(normalize=True)
-        model = get_nn_model(X.shape[1])
-        err = cv(model, X, y, K)
-        print(f'CV error (NN): {err}')
-    elif model_type == 'rf':
-        X, y = get_data(normalize=False)
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
-        result = cross_validate(model, X, y, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-        print(f'CV error (RF): {-np.mean(result["test_score"])}')
-    elif model_type == 'lr':
-        X, y = get_data(normalize=True)
-        model = LinearRegression()
-        result = cross_validate(model, X, y, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-        print(f'CV error (LR): {-np.mean(result["test_score"])}')
-    elif model_type == 'knn':
-        X_train, y_train = get_data(normalize=True)
-        X_test = get_data(train=False)
+        binary_predictions = clf.predict(X_test)
+
+        no_claim_indeces = np.where(binary_predictions == 0)[0]
+
         model = KNeighborsRegressor(n_neighbors=265)
         model.fit(X_train, y_train)
+
         y_pred = model.predict(X_test)
-        print("Predictions on the test set:", y_pred)
+
+        y_pred[no_claim_indeces] = 0
+
         df = pd.DataFrame({'ClaimAmounts': y_pred})
         df.to_csv('KNN.csv', index_label='rowIndex')
-
-        # result = cross_validate(model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-        # print(f'CV error (KNN) {-np.mean(result["test_score"])}')
     elif model_type == 'hr':
-        X_train, y_train = get_data(normalize=True)
-        X_test = get_data(train=False)
+        svm_model = SVC(kernel='linear', C=1.0)  # You can choose different kernels and hyperparameters
+        svm_model.fit(X_train, y_train_binary)
+
+        # Make predictions on the test set
+        binary_predictions = svm_model.predict(X_test)
+
+        no_claim_indeces = np.where(binary_predictions == 0)[0]
+
         huber_reg = HuberRegressor()
         param_grid = {'epsilon': [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]}
 
         grid_search = GridSearchCV(huber_reg, param_grid, cv=K)
         grid_search.fit(X_train, y_train)
-        # best_epsilon = grid_search.best_params_['epsilon']
         best_model = grid_search.best_estimator_
 
-        result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error',
-                                return_train_score=True)
-        print(f'Average Cross-Validation Mean Squared Error: {-np.mean(result["test_score"])}')
+        # result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error',
+        #                         return_train_score=True)
+        # print(f'Average Cross-Validation Mean Squared Error: {-np.mean(result["test_score"])}')
 
         y_pred = best_model.predict(X_test)
-        print("Predictions on the test set:", y_pred)
+        y_pred[no_claim_indeces] = 0
 
         df = pd.DataFrame({'ClaimAmounts': y_pred})
         df.to_csv('Huber.csv', index_label='rowIndex')
     elif model_type == 'en':
-        X_train, y_train = get_data(normalize=True)
-        X_test = get_data(train=False)
+        gb_classifier = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+        gb_classifier.fit(X_train, y_train_binary)
+
+        # Make predictions on the test set
+        binary_predictions = gb_classifier.predict(X_test)
+        no_claim_indeces = np.where(binary_predictions == 0)[0]
 
         elastic_net = ElasticNet()
         param_grid = {'alpha': [0.1, 0.5, 1.0, 2.0, 5.0]}
         grid_search = GridSearchCV(elastic_net, param_grid, cv=K, scoring='neg_mean_absolute_error')
         grid_search.fit(X_train, y_train)
 
-        best_alpha = grid_search.best_params_['alpha']
-        print(f"Best Alpha: ${best_alpha}")
         best_model = grid_search.best_estimator_
-        result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error')
-        print("Average Mean Absolute Error:", -np.mean(result['test_score']))
 
         y_pred = best_model.predict(X_test)
-        print("Predictions on the test set:", y_pred)
+        y_pred[no_claim_indeces] = 0
 
         df = pd.DataFrame({'ClaimAmounts': y_pred})
         df.to_csv('Elastic_net.csv', index_label='rowIndex')
 
 
 def main():
-    # evaluate('lr')
-    # evaluate('nn')
-    # evaluate('rf')
-    evaluate('knn')
+    X_train, y_train = get_data(normalize=True)
+    X_test = get_data(train=False, normalize=True)
+    y_train_binary = (y_train > 0).astype(int)
+
+    # Classify with KNN and train with KNN
+    # evaluate('knn', X_train, y_train, X_test, y_train_binary)
     # 194.77
 
-    # evaluate('hr')
+    # Classify with SVC and train with Huber
+    # evaluate('hr', X_train, y_train, X_test, y_train_binary)
     # 103.05
 
-    evaluate('en')
+    # Classify with Gradient Boosting and train with Elastic Net
+    evaluate('en', X_train, y_train, X_test, y_train_binary)
     # 194.74
 
 
