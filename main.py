@@ -1,15 +1,14 @@
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split, KFold, cross_validate
+from sklearn.model_selection import train_test_split, KFold, cross_validate, GridSearchCV
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import SGDClassifier
+from sklearn.svm import SVC
+from sklearn.linear_model import RidgeClassifier
+from sklearn.linear_model import HuberRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.linear_model import Ridge
-from sklearn.linear_model import Lasso
-from sklearn.naive_bayes import GaussianNB
-
 from preprocessing_data import get_data
-from model import get_nn_model
 
 
 def split_data(data):
@@ -47,70 +46,100 @@ def cv(model, X, y, K):
 		
 	return np.mean(mae) 
 
-def evaluate(model_type='lr'):
+def evaluate(model_type, X_train, y_train, X_test, y_train_binary):
 	K = 5
-  
 	
-	if model_type == 'ridge':
-		X, y = get_data(normalize=True)
-		X_test = get_data(train=False)
-		model = Ridge(alpha=1.0)
-		model.fit(X, y)
-		y_pred = model.predict(X_test)
+	if model_type == 'rf':
+		rf_classifier = RandomForestClassifier(n_estimators=100, max_depth=2, random_state=0)
+		rf_classifier.fit(X_train, y_train_binary)
+
+		binary_predictions = rf_classifier.predict(X_test)
+
+		no_claim_indices = np.where(binary_predictions == 0)[0]
+		model = HuberRegressor(max_iter=1000)
+		param_grid = {'epsilon': [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]}
+
+		grid_search = GridSearchCV(model, param_grid, cv=K)
+		grid_search.fit(X_train, y_train)
+		best_model = grid_search.best_estimator_
+		y_pred = best_model.predict(X_test)
+		y_pred[no_claim_indices] = 0
+
+		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
+		print(f'CV error (RF): {-np.mean(result["test_score"])}')
 		df= pd.DataFrame({'ClaimAmounts': y_pred})
-		df.to_csv('ridge.csv', index_label='rowIndex')
-		result = cross_validate(model, X, y, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
+		df.to_csv('rf_hr.csv', index_label='rowIndex')
+	elif model_type == 'svm':
+		svm_classifier = SVC(kernel='rbf', C=1.0)
+		svm_classifier.fit(X_train, y_train_binary)
+
+		binary_predictions = svm_classifier.predict(X_test)
+
+		no_claim_indices = np.where(binary_predictions == 0)[0]
+		model = HuberRegressor(max_iter=1000)
+		param_grid = {'epsilon': [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]}
+
+		grid_search = GridSearchCV(model, param_grid, cv=K)
+		grid_search.fit(X_train, y_train)
+		best_model = grid_search.best_estimator_
+		y_pred = best_model.predict(X_test)
+		y_pred[no_claim_indices] = 0
+		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
+		print(f'CV error (SVM): {-np.mean(result["test_score"])}')
+		df= pd.DataFrame({'ClaimAmounts': y_pred})
+		df.to_csv('svm_hr.csv', index_label='rowIndex')
+	elif model_type == 'sgd':
+		sgd_classifier = SGDClassifier(loss="hinge", penalty="l2", max_iter=5)
+		sgd_classifier.fit(X_train, y_train_binary)
+
+		binary_predictions = sgd_classifier.predict(X_test)
+
+		no_claim_indices = np.where(binary_predictions == 0)[0]
+		model = HuberRegressor(max_iter=1000)
+		param_grid = {'epsilon': [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]}
+
+		grid_search = GridSearchCV(model, param_grid, cv=K, scoring='neg_mean_absolute_error')
+		grid_search.fit(X_train, y_train)
+		best_model = grid_search.best_estimator_
+		y_pred = best_model.predict(X_test)
+		y_pred[no_claim_indices] = 0
+
+		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
+		print(f'CV error (SGD): {-np.mean(result["test_score"])}')
+		df= pd.DataFrame({'ClaimAmounts': y_pred})
+		df.to_csv('sgd_hr.csv', index_label='rowIndex')
+	elif model_type == 'ridge':
+		ridge_classifier = RidgeClassifier(alpha=1.0)
+		ridge_classifier.fit(X_train, y_train_binary)
+
+		binary_predictions = ridge_classifier.predict(X_test)
+
+		no_claim_indices = np.where(binary_predictions == 0)[0]
+		model = HuberRegressor(max_iter=1000)
+		param_grid = {'epsilon': [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]}
+
+		grid_search = GridSearchCV(model, param_grid, cv=K)
+		grid_search.fit(X_train, y_train)
+		best_model = grid_search.best_estimator_
+		y_pred = best_model.predict(X_test)
+		y_pred[no_claim_indices] = 0
+		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
 		print(f'CV error (Ridge): {-np.mean(result["test_score"])}')
-	elif model_type == 'ridge_undersampled':
-		data = undersample("trainingset.csv", 0.2)
-		X, y = split_data(data)
-		model = Ridge(alpha=1.0)
-		model.fit(X, y)
-		X_test = get_data(train=False)
-		y_pred = model.predict(X_test)
 		df= pd.DataFrame({'ClaimAmounts': y_pred})
-		df.to_csv('ridge_undersampled.csv', index_label='rowIndex')
-		result = cross_validate(model, X, y, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV error (Ridge_Undersampled (0.2)): {-np.mean(result["test_score"])}')
-	elif model_type == 'lasso':
-		X, y = get_data(normalize=True)
-		X_test = get_data(train=False)
-		model = Lasso(alpha=1.0)
-		model.fit(X, y)
-		y_pred = model.predict(X_test)
-		df= pd.DataFrame({'ClaimAmounts': y_pred})
-		df.to_csv('lasso.csv', index_label='rowIndex')
-		result = cross_validate(model, X, y, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV error (Lasso): {-np.mean(result["test_score"])}')
-	elif model_type == 'lasso_undersampled':
-		data = undersample("trainingset.csv", 0.2)
-		X, y = split_data(data)
-		model = Lasso(alpha=1.0)
-		model.fit(X, y)
-		X_test = get_data(train=False)
-		y_pred = model.predict(X_test)
-		df= pd.DataFrame({'ClaimAmounts': y_pred})
-		df.to_csv('lasso_undersampled.csv', index_label='rowIndex')
-		result = cross_validate(model, X, y, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV error (Lasso_Undersampled (0.2)): {-np.mean(result["test_score"])}')
-	else:
-		X, y = get_data(normalize=True)
-		model = LinearRegression()
-		result = cross_validate(model, X, y, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV error (LR): {-np.mean(result["test_score"])}')
+		df.to_csv('ridge_hr.csv', index_label='rowIndex')
    
 
 def main():
-	# evaluate()
-	# evaluate('nn')
-	# evaluate('rf')
-	rates = 0.2
-	undersample("trainingset.csv", rates)
-	evaluate('ridge')
-	evaluate('ridge_undersampled')
-	evaluate('lasso')
-	evaluate('lasso_undersampled')
+	data = undersample("trainingset.csv", 0.3)
+	X_train, y_train = split_data(data)
+	# X_train, y_train = get_data(normalize=True)
+	X_test = get_data(train=False, normalize=True)
+	y_train_binary = (y_train > 0).astype(int)
 
+	evaluate('rf', X_train, y_train, X_test, y_train_binary)
+	evaluate('svm', X_train, y_train, X_test, y_train_binary)
+	evaluate('sgd', X_train, y_train, X_test, y_train_binary)
+	evaluate('ridge', X_train, y_train, X_test, y_train_binary)
 
 if __name__ == "__main__":
     main()
