@@ -11,6 +11,9 @@ def process_data(filepath):
     data_read = pd.read_csv(filepath)
     data_read = data_read.drop(columns=['rowIndex'])
     data_read.dropna(inplace=True)
+    # data_read['mean_feature8_feature2'] = (data_read['feature8'] + data_read['feature2']) / 2
+    # data_read['mean_feature8_feature2'] = (data_read['feature15'] + data_read['feature12']) / 2
+    # data_read.drop(columns=['feature8', 'feature2', 'feature15', 'feature12'], inplace=True)
     return data_read
 
 
