@@ -7,8 +7,8 @@ from sklearn.metrics import accuracy_score, mean_absolute_error, f1_score
 from imblearn.combine import SMOTEENN
 from sklearn.preprocessing import StandardScaler
 
-from preprocessing_data import get_data, process_data, get_test_data
-from model import NeuralNetwork, get_rf_model, get_xgb_model
+from preprocessing_data import get_data, process_data, get_test_data, get_one_hot_data
+from model import NeuralNetwork, get_rf_model, get_xgb_model, CombinedNeuralNetwork
 
 
 def split_data(data):
@@ -17,23 +17,27 @@ def split_data(data):
 
     x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
     # Feature Scaling (Standardization)
-    # scaler = StandardScaler()
-    # x_train = scaler.fit_transform(x_train)
-    # x_test = scaler.transform(x_test)
+    scaler = StandardScaler()
+    x_train = scaler.fit_transform(x_train)
+    x_test = scaler.transform(x_test)
     return x_train, x_test, y_train, y_test
 
 
 def cv_nn(X, y, K):
   kf = KFold(K, shuffle=True, random_state=42)
+  f1 = []
   mae = []
  
   for train_idx, test_idx in kf.split(X):
-    model = NeuralNetwork(X.shape[1])
-    model.train(X[train_idx], y[train_idx], X[test_idx], y[test_idx])
-    loss, metrics = model.evaluate(X[test_idx], y[test_idx])
-    mae.append(metrics)
+    model = CombinedNeuralNetwork(X.shape[1])
+    model.compile()
+    model.fit(X.iloc[train_idx], y[train_idx], X.iloc[test_idx], y[test_idx])
+    result = model.evaluate(X.iloc[test_idx], y[test_idx])
+    f1.append(result[3])
+    print(result)
+    mae.append(result[4])
     
-  return np.mean(mae) 
+  return np.mean(f1), np.mean(mae) 
 
 def cv_two_stage_nn(K):
   kf = KFold(K, shuffle=True, random_state=42)
@@ -41,17 +45,20 @@ def cv_two_stage_nn(K):
   reg_metrics = []
   model_metrics = []
   
-  X, y = get_data(normalize=False)
+  X, y = get_data('trainingset.csv', normalize=False, transform=True)
+  X_one_hot = get_one_hot_data(X.copy(), True)
  
   clf = get_rf_model(type='classifier')
   
   # nn
   # clf = NeuralNetwork(X.shape[1], type='classifier')
-  reg = NeuralNetwork(X.shape[1], type='regressor')
+  
+  reg = NeuralNetwork(X_one_hot.shape[1], type='regressor')
  
   for train_idx, test_idx in kf.split(X):
     X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
     X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
+    X_train_one_hot, X_test_one_hot = X_one_hot.iloc[train_idx], X_one_hot.iloc[test_idx]
   
     X1_train, X1_test = X_train, X_test
     y1_train, y1_test = (y_train > 0).astype(int), (y_test > 0).astype(int)
@@ -59,8 +66,7 @@ def cv_two_stage_nn(K):
     # sampling
     # smote_enn = SMOTEENN(random_state=42)
     # X1_train, y1_train = smote_enn.fit_resample(X1_train, y1_train)
-  
-    X2_train, X2_test = X_train[y_train > 0], X_test[y_test > 0]
+    X2_train, X2_test = X_train_one_hot[y_train > 0], X_test_one_hot[y_test > 0]
     y2_train, y2_test = y_train[y_train > 0], y_test[y_test > 0]
   
     # normalise
@@ -79,13 +85,13 @@ def cv_two_stage_nn(K):
     # loss, metrics = clf.evaluate(X1_test, y1_test)
     # y1_pred = clf.predict(X1_test).flatten()
     # clf_metrics.append(metrics)
-
+    
     reg.train(X2_train, y2_train, X2_test, y2_test)
     loss, metrics = reg.evaluate(X2_test, y2_test)
     print('reg', metrics)
     reg_metrics.append(metrics)
   
-    X_test_reg = X_test[y1_pred > 0]
+    X_test_reg = X_test_one_hot[y1_pred > 0]
     # normalise
     # X_test_reg = scaler.transform(X_test_reg)
     y_pred = np.zeros(y_test.shape)
@@ -101,15 +107,16 @@ def cv_two_stage_nn(K):
   print(f'Classifier accuracy: {np.mean(clf_metrics)}')
   print(f'Regressor MAE: {np.mean(reg_metrics)}')
   print(f'Model MAE: {np.mean(model_metrics)}')
- 
-   
-def cv_two_stage(K):
+  
+
+def cv_two_stage(X, y, K):
   kf = KFold(K, shuffle=True, random_state=42)
   clf_metrics = []
   reg_metrics = []
   model_metrics = []
   
-  X, y = get_data(normalize=False)
+  # X, y = get_data(normalize=False, transform=True)
+  # X_one_hot = get_one_hot_data(X.copy(), False)
  
   clf = get_rf_model(type='classifier')
   reg = get_rf_model(type='regressor')
@@ -159,16 +166,22 @@ def cv_two_stage(K):
  
     model_metrics.append(mean_absolute_error(y_test, y_pred))
   
-  print(f'Classifier accuracy: {np.mean(clf_metrics)}')
-  print(f'Regressor MAE: {np.mean(reg_metrics)}')
-  print(f'Model MAE: {np.mean(model_metrics)}')
+  cls_f1 = np.mean(clf_metrics)
+  reg_mae = np.mean(reg_metrics)
+  model_mae = np.mean(model_metrics)
+  
+  print(f'Classifier accuracy: {cls_f1}')
+  print(f'Regressor MAE: {reg_mae}')
+  print(f'Model MAE: {model_mae}')
+  
+  return cls_f1, reg_mae, model_mae
   
   
 def evaluate(model_type='lr'):
   K = 10
   
   if model_type == 'nn':
-    X, y = get_data(normalize=True)
+    X, y = get_data(normalize=True, one_hot=True)
     err = cv_nn(X, y, K)
     print(f'CV error (NN): {err}')
   elif model_type == 'rf':
@@ -184,17 +197,20 @@ def evaluate(model_type='lr'):
    
 def train_nn():
   model_type = 'nn_two_stage3'	
-  X, y = get_data(normalize=False)
+  X, y = get_data('trainingset.csv', normalize=False, transform=True)
+  X_one_hot = get_one_hot_data(X.copy(), True)
   clf = get_rf_model(type='classifier')
 
   # nn
   # clf = NeuralNetwork(X.shape[1], type='classifier')
-  reg = NeuralNetwork(X.shape[1], type='regressor')
+  reg = NeuralNetwork(X_one_hot.shape[1], type='regressor')
 
-  X_train, X_test, y_train, y_test = split_data(process_data('trainingset.csv'))
+  X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+  X_train_one_hot, X_test_one_hot = X_one_hot.loc[X_train.index], X_one_hot.loc[X_test.index]
+ 
   X1_train, X1_test = X_train, X_test
   y1_train, y1_test = (y_train > 0).astype(int), (y_test > 0).astype(int)
-  X2_train, X2_test = X_train[y_train > 0], X_test[y_test > 0]
+  X2_train, X2_test = X_train_one_hot[y_train > 0], X_test_one_hot[y_test > 0]
   y2_train, y2_test = y_train[y_train > 0], y_test[y_test > 0]
 
   clf.fit(X1_train, y1_train)
@@ -204,10 +220,11 @@ def train_nn():
 
   reg.train(X2_train, y2_train, X2_test, y2_test)
 
-  X_test_set = get_test_data(normalize=False)
+  X_test_set, _ = get_data('testset.csv', test=True, normalize=False, transform=True)
+  X_test_set_one_hot = get_one_hot_data(X_test_set.copy(), True)
   y1_test_pred = clf.predict(X_test_set)
 
-  X_test_reg = X_test_set[y1_test_pred > 0]
+  X_test_reg = X_test_set_one_hot.loc[y1_test_pred > 0]
   y_pred = np.zeros(X_test_set.shape[0])
 
   if len(X_test_reg) > 0:
@@ -224,8 +241,8 @@ def train_nn():
 def train(model_type='lr'):
   if model_type == 'nn':
     X_train, X_val, y_train, y_val = split_data(process_data('trainingset.csv'))
-    model = NeuralNetwork(X_train.shape[1])
-    model.train(X_train, y_train, X_val, y_val)
+    model = CombinedNeuralNetwork(X_train.shape[1])
+    model.fit(X_train, y_train, X_val, y_val)
     X_test = get_test_data(normalize=True)
     pred = model.predict(X_test)
     
@@ -237,14 +254,12 @@ def train(model_type='lr'):
     pred = model.predict(X_test)
     
   else:
-    X, y = get_data(normalize=False)
- 
     clf = get_rf_model(type='classifier')
-    reg = get_rf_model(type='regressor')
+    # reg = get_rf_model(type='regressor')
   
-    # reg = get_xgb_model()
+    reg = get_xgb_model()
 
-    X_train, y_train = get_data(normalize=False)
+    X_train, y_train = get_data('trainingset.csv', normalize=False, transform=True, one_hot=False, pca=True)
 
   
     X1_train = X_train
@@ -255,7 +270,7 @@ def train(model_type='lr'):
     clf.fit(X1_train, y1_train)
     reg.fit(X2_train, y2_train)
   
-    X_test_set = get_test_data(normalize=False)
+    X_test_set, _ = get_data('testset.csv', test=True, normalize=False, transform=True, one_hot=False, pca=True)
     y1_test_pred = (clf.predict_proba(X_test_set)[:, 1] > 0.25).astype(int)
 
     X_test_reg = X_test_set[y1_test_pred > 0]
@@ -274,14 +289,18 @@ def train(model_type='lr'):
 
 def main():
   # evaluate()
-  # evaluate('nn') 
+  # evaluate('nn')
   # evaluate('rf')
   # cv_two_stage(10)
   # train('nn')
   # train('rf')
-  # train('nn_two_stage2')
+  # train('xgb_two_stage3')
   # cv_two_stage_nn(10)
   train_nn()
+  
+  # X, y = get_data(normalize=False, transform=True, one_hot=False, pca=True)
+  # cv_two_stage(X, y, 10)
+  
 
 if __name__ == "__main__":
     main()
