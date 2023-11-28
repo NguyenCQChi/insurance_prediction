@@ -4,10 +4,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, KFold, cross_validate, GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import SGDClassifier
-from sklearn.svm import SVC
+from sklearn import svm
 from sklearn.linear_model import RidgeClassifier
 from sklearn.linear_model import HuberRegressor
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 from preprocessing_data import get_data
 
 
@@ -34,6 +35,126 @@ def undersample(filepath, undersample_rate):
 	undersampled_data = pd.concat([majority, minority])
 	return undersampled_data
 
+def rf_hr():
+	X_train, y_train = get_data(normalize=True)
+	X_test = get_data(train=False, normalize=True)
+	y_train_binary = (y_train > 0).astype(int)
+	rf = RandomForestClassifier(n_estimators=200, random_state=0)
+
+	rf.fit(X_train, y_train_binary)
+	y_pred = rf.predict(X_test)
+
+	zero_indices_test = np.where(y_pred == 0)[0]
+	zero_indices_train = np.where(y_train_binary == 0)[0]
+
+	df = pd.read_csv('trainingset.csv')
+	data = df.drop(columns=['rowIndex'])
+	data.dropna(inplace=True)
+	X = data.drop(columns=['ClaimAmount'])
+	y = data['ClaimAmount']
+	scaler = StandardScaler()
+	X = scaler.fit_transform(X)
+	x_non_zero = X[np.where(y > 0)[0]]
+	y_non_zero = y[np.where(y > 0)[0]]
+	print("Huber Regression")
+	model = HuberRegressor(max_iter=1000)
+	model.fit(x_non_zero, y_non_zero)
+
+	# training predictions
+	y_pred_train = model.predict(X_train)
+	y_pred_train[zero_indices_train] = 0
+	df = pd.DataFrame({'ClaimAmounts': y_pred_train})
+	df.to_csv('rf_hr_train.csv', index_label='rowIndex')
+
+	print("training mean", np.sum(y_train)/len(y_train))
+	print("training mae: ", np.sum(np.abs(y_pred_train - y_train))/len(y_train))
+	print("training f1 score: ", f1_score(y_train_binary, rf.predict(X_train)))
+	# test predictions
+	y_pred = model.predict(X_test)
+	y_pred[zero_indices_test] = 0
+	df = pd.DataFrame({'ClaimAmounts': y_pred})
+	df.to_csv('rf_hr.csv', index_label='rowIndex')
+
+def rf_rf():
+	X_train, y_train = get_data(normalize=True)
+	X_test = get_data(train=False, normalize=True)
+	y_train_binary = (y_train > 0).astype(int)
+	rf = RandomForestClassifier(n_estimators=200, random_state=0)
+
+	rf.fit(X_train, y_train_binary)
+	y_pred = rf.predict(X_test)
+
+	zero_indices_test = np.where(y_pred == 0)[0]
+	zero_indices_train = np.where(y_train_binary == 0)[0]
+
+	df = pd.read_csv('trainingset.csv')
+	data = df.drop(columns=['rowIndex'])
+	data.dropna(inplace=True)
+	X = data.drop(columns=['ClaimAmount'])
+	y = data['ClaimAmount']
+	scaler = StandardScaler()
+	X = scaler.fit_transform(X)
+	x_non_zero = X[np.where(y > 0)[0]]
+	y_non_zero = y[np.where(y > 0)[0]]
+	print("Random Forest")
+	model = RandomForestRegressor(n_estimators=200, random_state=42)
+	model.fit(x_non_zero, y_non_zero)
+
+	# training predictions
+	y_pred_train = model.predict(X_train)
+	y_pred_train[zero_indices_train] = 0
+	df = pd.DataFrame({'ClaimAmounts': y_pred_train})
+	df.to_csv('rf_rf_train.csv', index_label='rowIndex')
+
+	print("training mean", np.sum(y_train)/len(y_train))
+	print("training mae: ", np.sum(np.abs(y_pred_train - y_train))/len(y_train))
+	print("training f1 score: ", f1_score(y_train_binary, rf.predict(X_train)))
+	# test predictions
+	y_pred = model.predict(X_test)
+	y_pred[zero_indices_test] = 0
+	df = pd.DataFrame({'ClaimAmounts': y_pred})
+	df.to_csv('rf_rf.csv', index_label='rowIndex')
+
+def rf_svm():
+	X_train, y_train = get_data(normalize=True)
+	X_test = get_data(train=False, normalize=True)
+	y_train_binary = (y_train > 0).astype(int)
+	rf = RandomForestClassifier(n_estimators=200, random_state=0)
+
+	rf.fit(X_train, y_train_binary)
+	y_pred = rf.predict(X_test)
+
+	zero_indices_test = np.where(y_pred == 0)[0]
+	zero_indices_train = np.where(y_train_binary == 0)[0]
+
+	df = pd.read_csv('trainingset.csv')
+	data = df.drop(columns=['rowIndex'])
+	data.dropna(inplace=True)
+	X = data.drop(columns=['ClaimAmount'])
+	y = data['ClaimAmount']
+	scaler = StandardScaler()
+	X = scaler.fit_transform(X)
+	x_non_zero = X[np.where(y > 0)[0]]
+	y_non_zero = y[np.where(y > 0)[0]]
+	print("SVM")
+	model = svm.SVR()
+	model.fit(x_non_zero, y_non_zero)
+
+	# training predictions
+	y_pred_train = model.predict(X_train)
+	y_pred_train[zero_indices_train] = 0
+	df = pd.DataFrame({'ClaimAmounts': y_pred_train})
+	df.to_csv('rf_svm_train.csv', index_label='rowIndex')
+
+	print("training mean", np.sum(y_train)/len(y_train))
+	print("training mae: ", np.sum(np.abs(y_pred_train - y_train))/len(y_train))
+	print("training f1 score: ", f1_score(y_train_binary, rf.predict(X_train)))
+	# test predictions
+	y_pred = model.predict(X_test)
+	y_pred[zero_indices_test] = 0
+	df = pd.DataFrame({'ClaimAmounts': y_pred})
+	df.to_csv('rf_svm.csv', index_label='rowIndex')
+
 def cv(model, X, y, K):
 	kf = KFold(K, shuffle=True, random_state=42)
 	mae = []
@@ -46,100 +167,31 @@ def cv(model, X, y, K):
 		
 	return np.mean(mae) 
 
-def evaluate(model_type, X_train, y_train, X_test, y_train_binary):
-	K = 5
-	
-	if model_type == 'rf':
-		rf_classifier = RandomForestClassifier(n_estimators=100, max_depth=2, random_state=0)
-		rf_classifier.fit(X_train, y_train_binary)
+def oversample(filepath, oversample_rate):
+	df = pd.read_csv(filepath)
+	data = df.drop(columns=['rowIndex'])
+	data.dropna(inplace=True)
+	majority = data[data['ClaimAmount'] == 0]
+	minority = data[data['ClaimAmount'] != 0]
 
-		binary_predictions = rf_classifier.predict(X_test)
-
-		no_claim_indices = np.where(binary_predictions == 0)[0]
-		model = HuberRegressor(max_iter=1000)
-		param_grid = {'epsilon': [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]}
-
-		grid_search = GridSearchCV(model, param_grid, cv=K)
-		grid_search.fit(X_train, y_train)
-		best_model = grid_search.best_estimator_
-		y_pred = best_model.predict(X_test)
-		y_pred[no_claim_indices] = 0
-
-		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV MAE (RF): {-np.mean(result["test_score"])}')
-		df= pd.DataFrame({'ClaimAmounts': y_pred})
-		df.to_csv('rf_hr.csv', index_label='rowIndex')
-	elif model_type == 'svm':
-		svm_classifier = SVC(kernel='rbf', C=1.0)
-		svm_classifier.fit(X_train, y_train_binary)
-
-		binary_predictions = svm_classifier.predict(X_test)
-
-		no_claim_indices = np.where(binary_predictions == 0)[0]
-		model = HuberRegressor(max_iter=1000)
-		param_grid = {'epsilon': [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]}
-
-		grid_search = GridSearchCV(model, param_grid, cv=K)
-		grid_search.fit(X_train, y_train)
-		best_model = grid_search.best_estimator_
-		y_pred = best_model.predict(X_test)
-		y_pred[no_claim_indices] = 0
-		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV MAE (SVM): {-np.mean(result["test_score"])}')
-		df= pd.DataFrame({'ClaimAmounts': y_pred})
-		df.to_csv('svm_hr.csv', index_label='rowIndex')
-	elif model_type == 'sgd':
-		sgd_classifier = SGDClassifier(loss="hinge", penalty="l2", max_iter=5)
-		sgd_classifier.fit(X_train, y_train_binary)
-
-		binary_predictions = sgd_classifier.predict(X_test)
-
-		no_claim_indices = np.where(binary_predictions == 0)[0]
-		model = HuberRegressor(max_iter=1000)
-		param_grid = {'epsilon': [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]}
-
-		grid_search = GridSearchCV(model, param_grid, cv=K, scoring='neg_mean_absolute_error')
-		grid_search.fit(X_train, y_train)
-		best_model = grid_search.best_estimator_
-		y_pred = best_model.predict(X_test)
-		y_pred[no_claim_indices] = 0
-
-		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV MAE (SGD): {-np.mean(result["test_score"])}')
-		df= pd.DataFrame({'ClaimAmounts': y_pred})
-		df.to_csv('sgd_hr.csv', index_label='rowIndex')
-	elif model_type == 'ridge':
-		ridge_classifier = RidgeClassifier(alpha=1.0)
-		ridge_classifier.fit(X_train, y_train_binary)
-
-		binary_predictions = ridge_classifier.predict(X_test)
-
-		no_claim_indices = np.where(binary_predictions == 0)[0]
-		model = HuberRegressor(max_iter=1000)
-		param_grid = {'epsilon': [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]}
-
-		grid_search = GridSearchCV(model, param_grid, cv=K)
-		grid_search.fit(X_train, y_train)
-		best_model = grid_search.best_estimator_
-		y_pred = best_model.predict(X_test)
-		y_pred[no_claim_indices] = 0
-		result = cross_validate(best_model, X_train, y_train, cv=K, scoring='neg_mean_absolute_error', return_train_score=True)
-		print(f'CV MAE (Ridge): {-np.mean(result["test_score"])}')
-		df= pd.DataFrame({'ClaimAmounts': y_pred})
-		df.to_csv('ridge_hr.csv', index_label='rowIndex')
+	minority_count = int((len(majority)*oversample_rate)-len(majority))
+	minority = minority.sample(minority_count, replace=True)
+	oversampled_data = pd.concat([majority, minority])
+	return oversampled_data
    
+def f1_score(y_true, y_pred):
+	tp = np.sum(y_true * y_pred)
+	fp = np.sum((1 - y_true) * y_pred)
+	fn = np.sum(y_true * (1 - y_pred))
+	precision = tp / (tp + fp)
+	recall = tp / (tp + fn)
+	return 2 * precision * recall / (precision + recall)
 
 def main():
-	data = undersample("trainingset.csv", 0.2)
-	X_train, y_train = split_data(data)
-	# X_train, y_train = get_data(normalize=True)
-	X_test = get_data(train=False, normalize=True)
-	y_train_binary = (y_train > 0).astype(int)
+	rf_hr()
+	rf_rf()
+	rf_svm()
 
-	evaluate('rf', X_train, y_train, X_test, y_train_binary)
-	evaluate('svm', X_train, y_train, X_test, y_train_binary)
-	evaluate('sgd', X_train, y_train, X_test, y_train_binary)
-	evaluate('ridge', X_train, y_train, X_test, y_train_binary)
 
 if __name__ == "__main__":
     main()
