@@ -8,7 +8,7 @@ from imblearn.combine import SMOTEENN
 from sklearn.preprocessing import StandardScaler
 
 from preprocessing_data import get_data, process_data, get_test_data, get_one_hot_data
-from model import NeuralNetwork, get_rf_model, get_xgb_model, CombinedNeuralNetwork
+from model import NeuralNetwork, get_rf_model, get_xgb_model, CombinedNeuralNetwork, get_svr_model
 
 
 def split_data(data):
@@ -109,7 +109,7 @@ def cv_two_stage_nn(K):
   print(f'Model MAE: {np.mean(model_metrics)}')
   
 
-def cv_two_stage(X, y, K):
+def cv_two_stage(X, y, K, threshold=0.25, normalize=False):
   kf = KFold(K, shuffle=True, random_state=42)
   clf_metrics = []
   reg_metrics = []
@@ -119,8 +119,10 @@ def cv_two_stage(X, y, K):
   # X_one_hot = get_one_hot_data(X.copy(), False)
  
   clf = get_rf_model(type='classifier')
-  reg = get_rf_model(type='regressor')
-  # reg = get_xgb_model()
+  # clf = get_xgb_model(type='classifier')
+  # reg = get_rf_model(type='regressor')
+  # reg = get_xgb_model(alpha=threshold)
+  reg = get_svr_model(C=100, e=1, g='auto', k='poly')
  
   for train_idx, test_idx in kf.split(X):
     X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
@@ -137,26 +139,31 @@ def cv_two_stage(X, y, K):
     y2_train, y2_test = y_train[y_train > 0], y_test[y_test > 0]
   
     # normalise
-    # scaler = StandardScaler()
-    # X2_train, X2_test = scaler.fit_transform(X2_train), scaler.transform(X2_test)
-  
+    if normalize:
+      scaler = StandardScaler()
+      X2_train, X2_test = scaler.fit_transform(X2_train), scaler.transform(X2_test)
+    
     clf.fit(X1_train, y1_train)
     y1_pred = (clf.predict_proba(X1_test)[:, 1] > 0.25).astype(int)
     # y1_pred = clf.predict(X1_test)
     acc_score = f1_score(y1_test, y1_pred)
-    print('clf', acc_score)
     clf_metrics.append(acc_score)
 
     reg.fit(X2_train, y2_train)
     y2_pred = reg.predict(X2_test)
-    print('reg ', mean_absolute_error(y2_test, y2_pred))
     reg_metrics.append(mean_absolute_error(y2_test, y2_pred))
   
   
     X_test_reg = X_test[y1_pred > 0]
+    
     # normalise
-    # X_test_reg = scaler.transform(X_test_reg)
+    if normalize:
+      X_test_reg = scaler.transform(X_test_reg)
+    
     y_pred = np.zeros(y_test.shape)
+    
+    print('clf', acc_score)
+    print('reg ', mean_absolute_error(y2_test, y2_pred))
     print(len(X_test_reg))
     print(np.sum(y_test > 0))
   
@@ -258,8 +265,9 @@ def train(model_type='lr'):
     # reg = get_rf_model(type='regressor')
   
     reg = get_xgb_model()
+    
 
-    X_train, y_train = get_data('trainingset.csv', normalize=False, transform=True, one_hot=False, pca=True)
+    X_train, y_train = get_data('trainingset.csv')
 
   
     X1_train = X_train
@@ -270,7 +278,7 @@ def train(model_type='lr'):
     clf.fit(X1_train, y1_train)
     reg.fit(X2_train, y2_train)
   
-    X_test_set, _ = get_data('testset.csv', test=True, normalize=False, transform=True, one_hot=False, pca=True)
+    X_test_set, _ = get_data('testset.csv', test=True)
     y1_test_pred = (clf.predict_proba(X_test_set)[:, 1] > 0.25).astype(int)
 
     X_test_reg = X_test_set[y1_test_pred > 0]
@@ -287,6 +295,15 @@ def train(model_type='lr'):
   df.to_csv(f'submission_{model_type}.csv', index=False)
   
 
+def cross_validate(model_type='two_stage'):
+  if model_type == 'two_stage':
+    X, y = get_data("trainingset.csv")
+    scores = []
+    for t in [0.1, 0.5, 1.0, 2.0, 5.0]:
+      scores.append((cv_two_stage(X, y, 5, t), t))
+    
+    print(scores)
+
 def main():
   # evaluate()
   # evaluate('nn')
@@ -294,12 +311,13 @@ def main():
   # cv_two_stage(10)
   # train('nn')
   # train('rf')
-  # train('xgb_two_stage3')
+  # train('xgb_msle_two_stage4')
   # cv_two_stage_nn(10)
-  train_nn()
+  # train_nn()
   
-  # X, y = get_data(normalize=False, transform=True, one_hot=False, pca=True)
-  # cv_two_stage(X, y, 10)
+  X, y = get_data("trainingset.csv")
+  cv_two_stage(X, y, 10, normalize=True)
+  # cross_validate()
   
 
 if __name__ == "__main__":

@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.svm import SVR
+from sklearn.model_selection import GridSearchCV
+
 from preprocessing_data import get_data
 from main import cv_two_stage
 
@@ -16,12 +19,34 @@ def test_single_feature():
   features.sort(key=lambda x: (-x[1], x[2]))
   return features
 
+def svr_grid_search():
+  svr_params = {
+    'C': [0.1, 1, 5, 10, 50, 100, 500, 1000],
+    'epsilon': [0.001, 0.01, 0.1, 0.5, 1, 5, 10],
+    'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
+    'gamma': ['scale', 'auto'] 
+  }
+  # grid search for svr
+  grid_search = GridSearchCV(SVR(), svr_params, cv=5, scoring='neg_root_mean_squared_error')
+  
+  X, y = get_data('trainingset.csv', normalize=True)
+  X, y = X[y > 0], y[y > 0]
+  
+  grid_search.fit(X, y)
+  print(grid_search.best_params_)
+  # {'C': 100, 'epsilon': 1, 'gamma': 'auto', 'kernel': 'poly'}
+  
+  
 
-for col in df.columns:
-  if df[col].unique().size < 30:
-    print(f'{col}: {df[col].unique().size}, range: {df[col].max()} { df[col].min()}')
-    freq = df[col].value_counts()
+svr_grid_search()
+
+# for col in df.columns:
+#   if df[col].unique().size < 30:
+#     print(f'{col}: {df[col].unique().size}, range: {df[col].max()} { df[col].min()}')
+#     freq = df[col].value_counts()
     # plt.bar(freq.index, freq.values)
     # plt.xticks(freq.index)
     # plt.title(col)
     # plt.show()
+    
+    

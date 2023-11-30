@@ -40,7 +40,7 @@ def get_data(filepath, test=False, normalize=False, one_hot=False, transform=Fal
         X = pd.DataFrame(X_scaled, columns=X.columns)
         
     if pca:
-        pca = PCA(n_components=X.shape[1] - 2)
+        pca = PCA(n_components=X.shape[1])
         X = pca.fit_transform(X)
         X = pd.DataFrame(X)
         

@@ -5,7 +5,8 @@ from keras.layers import Dense, Dropout, Concatenate
 from keras.callbacks import EarlyStopping
 from keras.optimizers import AdamW
 from keras.metrics import F1Score
-from xgboost import XGBRegressor
+from xgboost import XGBRegressor, XGBClassifier
+from sklearn.svm import SVR
 
 
 class NeuralNetwork:
@@ -27,7 +28,7 @@ class NeuralNetwork:
             )
         else:
             model.add(Dense(1))
-            optimizer = AdamW(learning_rate=1e-3, weight_decay=4e-3)
+            optimizer = AdamW(learning_rate=1e-4, weight_decay=4e-4)
             model.compile(optimizer=optimizer, loss="mse", metrics=["mae"])
 
         self.model = model
@@ -113,5 +114,11 @@ def get_rf_model(type="regressor"):
         return RandomForestRegressor(n_estimators=200, random_state=42)
 
 
-def get_xgb_model():
-    return XGBRegressor(objective ='reg:squarederror', n_estimators = 200)
+def get_xgb_model(type="regressor", alpha=0.1):
+    if type == 'classifier':
+        return XGBClassifier(n_estimators = 200, random_state=42)
+    
+    return XGBRegressor(objective ='reg:squaredlogerror', alpha=alpha, n_estimators = 200, random_state=42)
+
+def get_svr_model(k='poly', C=100, e=1, g='auto'):
+    return SVR(kernel=k, C=C, epsilon=e, gamma=g)
