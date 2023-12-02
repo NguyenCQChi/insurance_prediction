@@ -21,8 +21,8 @@ def test_single_feature():
 
 def svr_grid_search():
   svr_params = {
-    'C': [0.1, 1, 5, 10, 50, 100, 500, 1000],
-    'epsilon': [0.001, 0.01, 0.1, 0.5, 1, 5, 10],
+    'C': [100, 500, 1000, 10000],
+    'epsilon': [1, 5, 10, 100, 1000],
     'kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
     'gamma': ['scale', 'auto'] 
   }
@@ -35,6 +35,8 @@ def svr_grid_search():
   grid_search.fit(X, y)
   print(grid_search.best_params_)
   # {'C': 100, 'epsilon': 1, 'gamma': 'auto', 'kernel': 'poly'}
+  # {'C': 1000, 'epsilon': 10, 'gamma': 'auto', 'kernel': 'poly'}
+  # {'C': 10000, 'epsilon': 1000, 'gamma': 'auto', 'kernel': 'rbf'}
   
   
 

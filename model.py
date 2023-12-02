@@ -118,7 +118,7 @@ def get_xgb_model(type="regressor", alpha=0.1):
     if type == 'classifier':
         return XGBClassifier(n_estimators = 200, random_state=42)
     
-    return XGBRegressor(objective ='reg:squaredlogerror', alpha=alpha, n_estimators = 200, random_state=42)
+    return XGBRegressor(objective ='reg:absoluteerror', n_estimators = 200, random_state=42)
 
 def get_svr_model(k='poly', C=100, e=1, g='auto'):
     return SVR(kernel=k, C=C, epsilon=e, gamma=g)

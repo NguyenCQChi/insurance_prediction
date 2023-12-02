@@ -6,6 +6,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import accuracy_score, mean_absolute_error, f1_score
 from imblearn.combine import SMOTEENN
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import ElasticNet, Lasso, Ridge
 
 from preprocessing_data import get_data, process_data, get_test_data, get_one_hot_data
 from model import NeuralNetwork, get_rf_model, get_xgb_model, CombinedNeuralNetwork, get_svr_model
@@ -109,7 +110,7 @@ def cv_two_stage_nn(K):
   print(f'Model MAE: {np.mean(model_metrics)}')
   
 
-def cv_two_stage(X, y, K, threshold=0.25, normalize=False):
+def cv_two_stage(X, y, K, reg, normalize=False, threshold=0.25):
   kf = KFold(K, shuffle=True, random_state=42)
   clf_metrics = []
   reg_metrics = []
@@ -122,7 +123,8 @@ def cv_two_stage(X, y, K, threshold=0.25, normalize=False):
   # clf = get_xgb_model(type='classifier')
   # reg = get_rf_model(type='regressor')
   # reg = get_xgb_model(alpha=threshold)
-  reg = get_svr_model(C=100, e=1, g='auto', k='poly')
+  # reg = get_svr_model(C=1000, e=10, g='auto', k='poly')
+  reg = reg
  
   for train_idx, test_idx in kf.split(X):
     X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
@@ -144,7 +146,7 @@ def cv_two_stage(X, y, K, threshold=0.25, normalize=False):
       X2_train, X2_test = scaler.fit_transform(X2_train), scaler.transform(X2_test)
     
     clf.fit(X1_train, y1_train)
-    y1_pred = (clf.predict_proba(X1_test)[:, 1] > 0.25).astype(int)
+    y1_pred = (clf.predict_proba(X1_test)[:, 1] > threshold).astype(int)
     # y1_pred = clf.predict(X1_test)
     acc_score = f1_score(y1_test, y1_pred)
     clf_metrics.append(acc_score)
@@ -245,7 +247,7 @@ def train_nn():
   df.to_csv(f'submission_{model_type}.csv', index=False)
 
 
-def train(model_type='lr'):
+def train(reg, model_type='lr', normalize=False, threshold=0.25):
   if model_type == 'nn':
     X_train, X_val, y_train, y_val = split_data(process_data('trainingset.csv'))
     model = CombinedNeuralNetwork(X_train.shape[1])
@@ -264,7 +266,7 @@ def train(model_type='lr'):
     clf = get_rf_model(type='classifier')
     # reg = get_rf_model(type='regressor')
   
-    reg = get_xgb_model()
+    reg = reg
     
 
     X_train, y_train = get_data('trainingset.csv')
@@ -274,17 +276,24 @@ def train(model_type='lr'):
     y1_train = (y_train > 0).astype(int)
     X2_train = X_train[y_train > 0]
     y2_train = y_train[y_train > 0]
+    
+    scaler = StandardScaler()
+    
+    if normalize:
+      X2_train = scaler.fit_transform(X2_train)
   
     clf.fit(X1_train, y1_train)
     reg.fit(X2_train, y2_train)
   
     X_test_set, _ = get_data('testset.csv', test=True)
-    y1_test_pred = (clf.predict_proba(X_test_set)[:, 1] > 0.25).astype(int)
+    y1_test_pred = (clf.predict_proba(X_test_set)[:, 1] > threshold).astype(int)
 
     X_test_reg = X_test_set[y1_test_pred > 0]
     y_pred = np.zeros(X_test_set.shape[0])
   
     if len(X_test_reg) > 0:
+      if normalize:
+        X_test_reg = scaler.fit_transform(X_test_reg)
       y_pred_reg = reg.predict(X_test_reg)
       y_pred[y1_test_pred > 0] = y_pred_reg
 
@@ -316,7 +325,11 @@ def main():
   # train_nn()
   
   X, y = get_data("trainingset.csv")
-  cv_two_stage(X, y, 10, normalize=True)
+  reg = get_xgb_model()
+  # reg = get_svr_model(k='poly', C=100, e=1, g='auto')
+  # cv_two_stage(X, y, 10, reg, threshold=0.28)
+  
+  train(reg, model_type='xgb_25_abs')
   # cross_validate()
   
 
