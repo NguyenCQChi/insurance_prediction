@@ -109,7 +109,7 @@ class CombinedNeuralNetwork:
 
 def get_rf_model(type="regressor"):
     if type == "classifier":
-        return RandomForestClassifier(n_estimators=200, random_state=42)
+        return RandomForestClassifier(n_estimators=300, class_weight='balanced', random_state=42)
     else:
         return RandomForestRegressor(n_estimators=200, random_state=42)
 
@@ -118,7 +118,10 @@ def get_xgb_model(type="regressor", alpha=0.1):
     if type == 'classifier':
         return XGBClassifier(n_estimators = 200, random_state=42)
     
-    return XGBRegressor(objective ='reg:absoluteerror', n_estimators = 200, random_state=42)
+    return XGBRegressor(objective ='reg:squaredlogerror', n_estimators = 200, random_state=42)
+    # return XGBRegressor(n_estimators=3000, learning_rate=0.4, max_depth=7, eta=0.1, subsample=0.8,
+    #                        colsample_bytree=0.8, objective='reg:absoluteerror')
+
 
 def get_svr_model(k='poly', C=100, e=1, g='auto'):
     return SVR(kernel=k, C=C, epsilon=e, gamma=g)

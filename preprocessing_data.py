@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.decomposition import PCA
 
 categorical_fs = ['feature3', 'feature4', 'feature5', 'feature7', 'feature9', 'feature11', 'feature13', 'feature14', 'feature15', 'feature16', 'feature18']
@@ -37,6 +37,7 @@ def get_data(filepath, test=False, normalize=False, one_hot=False, transform=Fal
     elif normalize:
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
+        X_scaled = MinMaxScaler().fit_transform(X_scaled)
         X = pd.DataFrame(X_scaled, columns=X.columns)
         
     if pca:

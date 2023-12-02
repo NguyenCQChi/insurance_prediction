@@ -5,9 +5,9 @@ from sklearn.model_selection import train_test_split, KFold, cross_validate
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import accuracy_score, mean_absolute_error, f1_score
 from imblearn.combine import SMOTEENN
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.linear_model import ElasticNet, Lasso, Ridge
-
+import joblib
 from preprocessing_data import get_data, process_data, get_test_data, get_one_hot_data
 from model import NeuralNetwork, get_rf_model, get_xgb_model, CombinedNeuralNetwork, get_svr_model
 
@@ -143,11 +143,13 @@ def cv_two_stage(X, y, K, reg, normalize=False, threshold=0.25):
     # normalise
     if normalize:
       scaler = StandardScaler()
+      minmax_scaler = MinMaxScaler()
       X2_train, X2_test = scaler.fit_transform(X2_train), scaler.transform(X2_test)
+      X2_train, X2_test = minmax_scaler.fit_transform(X2_train), minmax_scaler.transform(X2_test)
     
     clf.fit(X1_train, y1_train)
-    y1_pred = (clf.predict_proba(X1_test)[:, 1] > threshold).astype(int)
-    # y1_pred = clf.predict(X1_test)
+    # y1_pred = (clf.predict_proba(X1_test)[:, 1] > threshold).astype(int)
+    y1_pred = clf.predict(X1_test)
     acc_score = f1_score(y1_test, y1_pred)
     clf_metrics.append(acc_score)
 
@@ -155,17 +157,17 @@ def cv_two_stage(X, y, K, reg, normalize=False, threshold=0.25):
     y2_pred = reg.predict(X2_test)
     reg_metrics.append(mean_absolute_error(y2_test, y2_pred))
   
-  
     X_test_reg = X_test[y1_pred > 0]
     
     # normalise
     if normalize:
       X_test_reg = scaler.transform(X_test_reg)
+      X_test_reg = minmax_scaler.transform(X_test_reg)
     
     y_pred = np.zeros(y_test.shape)
     
     print('clf', acc_score)
-    print('reg ', mean_absolute_error(y2_test, y2_pred))
+    print('reg', mean_absolute_error(y2_test, y2_pred))
     print(len(X_test_reg))
     print(np.sum(y_test > 0))
   
@@ -265,13 +267,10 @@ def train(reg, model_type='lr', normalize=False, threshold=0.25):
   else:
     clf = get_rf_model(type='classifier')
     # reg = get_rf_model(type='regressor')
-  
     reg = reg
     
-
     X_train, y_train = get_data('trainingset.csv')
 
-  
     X1_train = X_train
     y1_train = (y_train > 0).astype(int)
     X2_train = X_train[y_train > 0]
@@ -284,9 +283,13 @@ def train(reg, model_type='lr', normalize=False, threshold=0.25):
   
     clf.fit(X1_train, y1_train)
     reg.fit(X2_train, y2_train)
+    
+    joblib.dump(clf, 'clf.sav')
+    joblib.dump(reg, 'reg.sav')
   
     X_test_set, _ = get_data('testset.csv', test=True)
-    y1_test_pred = (clf.predict_proba(X_test_set)[:, 1] > threshold).astype(int)
+    # y1_test_pred = (clf.predict_proba(X_test_set)[:, 1] > threshold).astype(int)
+    y1_test_pred = clf.predict(X_test_set)
 
     X_test_reg = X_test_set[y1_test_pred > 0]
     y_pred = np.zeros(X_test_set.shape[0])
@@ -327,9 +330,9 @@ def main():
   X, y = get_data("trainingset.csv")
   reg = get_xgb_model()
   # reg = get_svr_model(k='poly', C=100, e=1, g='auto')
-  # cv_two_stage(X, y, 10, reg, threshold=0.28)
+  # cv_two_stage(X, y, 10, reg, normalize=True, threshold=0.5)
   
-  train(reg, model_type='xgb_25_abs')
+  train(reg, model_type='rf_xgb_final')
   # cross_validate()
   
 
